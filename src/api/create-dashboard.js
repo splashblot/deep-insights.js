@@ -64,20 +64,34 @@ var createDashboard = function (selector, vizJSON, opts, callback) {
 
   vis.once('load', function (vis) {
     document.querySelectorAll('.raster-tiled-layers-content button')[0].onclick = function (ev) {
-      if (!this.previousSibling.value) {
+      const layerInput = this.previousSibling;
+      if (!layerInput.value) {
         let elem = document.getElementById('message-raster-layer');
         elem.innerHTML = 'Please add a URL for the layer';
         elem.style.display = 'block';
         return;
       }
-      var layername = prompt('layer name');
-      var newlayer = new L.TileLayer(ev.target.previousSibling.value);
-      var layerindex = layerArray.length +1;
+      let layername = '';
+      if (layerInput.value.toUpperCase().includes('NDVI')){
+        layername = 'NDVI';
+      } else if (layerInput.value.toUpperCase().includes('NDRE')){
+        layername = 'NDRE'
+      } else if (layerInput.value.toUpperCase().includes('THLA')){
+        layername = 'THLA'
+      } else if (layerInput.value.toUpperCase().includes('RGB')){
+        layername = 'RGB'
+      } 
+      if (!layername || confirm('Layer name: '+ layername + ', change it?')) {
+        layername = prompt('Give this layer a name');
+      }
+      
+      const newlayer = new L.TileLayer(layerInput.value);
+      const layerindex = layerArray.length +1;
       layerArray.push([newlayer]);
       vis.map.addLayer(newlayer);
 
-      var listitem = document.createElement('li');
-      listitem.innerHTML = layername + '<span class="remove-tiled-layer" data-layerindex="'+layerindex+'">REMOVE LAYER</span>';
+      let listitem = document.createElement('li');
+      listitem.innerHTML = layername + '<span class="remove-tiled-layer" data-layerindex="'+layerindex+'">Remove layer</span>';
       ev.target.parentElement.lastElementChild.appendChild(listitem);
     }
     document.querySelector('body').addEventListener('click', function(event) {
