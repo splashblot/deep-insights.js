@@ -81,7 +81,7 @@ var createDashboard = function (selector, vizJSON, opts, callback) {
       } else if (layerInput.value.toUpperCase().includes('RGB')){
         layername = 'RGB'
       } 
-      if (!layername || confirm('Layer name: '+ layername + ', change it?')) {
+      if (!layername || confirm('Layer name: '+ layername + ', do you want to change it?')) {
         layername = prompt('Give this layer a name');
       }
       
