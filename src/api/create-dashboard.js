@@ -64,6 +64,12 @@ var createDashboard = function (selector, vizJSON, opts, callback) {
 
   vis.once('load', function (vis) {
     document.querySelectorAll('.raster-tiled-layers-content button')[0].onclick = function (ev) {
+      if (!this.previousSibling.value) {
+        let elem = document.getElementById('message-raster-layer');
+        elem.innerHTML = 'Please add a URL for the layer';
+        elem.style.display = 'block';
+        return;
+      }
       var layername = prompt('layer name');
       var newlayer = new L.TileLayer(ev.target.previousSibling.value);
       var layerindex = layerArray.length +1;
