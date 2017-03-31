@@ -63,6 +63,23 @@ var createDashboard = function (selector, vizJSON, opts, callback) {
   }));
 
   vis.once('load', function (vis) {
+    document.querySelectorAll('.raster-tiled-layers-content button')[0].onclick = function (ev) {
+      var layername = prompt('layer name');
+      var newlayer = new L.TileLayer(ev.target.previousSibling.value);
+      var layerindex = layerArray.length +1;
+      layerArray.push([newlayer]);
+      vis.map.addLayer(newlayer);
+
+      var listitem = document.createElement('li');
+      listitem.innerHTML = layername + '<span class="remove-tiled-layer" data-layerindex="'+layerindex+'">REMOVE LAYER</span>';
+      ev.target.parentElement.lastElementChild.appendChild(listitem);
+    }
+    document.querySelector('body').addEventListener('click', function(event) {
+      if (event.target.classList.contains('remove-tiled-layer') && confirm('delete layer?')) {
+        vis.map.removeLayerAt(~~event.target.dataset.layerindex +1);
+        event.target.parentElement.remove()
+      }
+    });
     if (stateFromURL && !_.isEmpty(stateFromURL.map)) {
       if (!_.isUndefined(stateFromURL.map.ne) && !_.isUndefined(stateFromURL.map.sw)) {
         vis.map.setBounds([stateFromURL.map.ne, stateFromURL.map.sw]);
