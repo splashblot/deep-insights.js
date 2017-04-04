@@ -5,6 +5,8 @@ var DashboardView = require('../dashboard-view');
 var WidgetsCollection = require('../widgets/widgets-collection');
 var WidgetsService = require('../widgets-service');
 var URLHelper = require('./url-helper');
+var layerArray = [];
+var layerssum = 0;
 
 /**
  * Translates a vizJSON v3 datastructure into a working dashboard which will be rendered in given selector.
@@ -62,13 +64,21 @@ var createDashboard = function (selector, vizJSON, opts, callback) {
     skipMapInstantiation: true
   }));
 
+  
   vis.once('load', function (vis) {
+    var tilebox = document.querySelectorAll('.Editor-ListLayer li');
+    tilebox = tilebox[tilebox.length - 1];
+    const boxtop = tilebox.offsetTop + tilebox.offsetHeight + 125 + 'px'; /*125px header height*/
+    document.querySelector('.Editor-ListLayer-item-raster').style.top = boxtop;
+
     document.querySelectorAll('.raster-tiled-layers-content button')[0].onclick = function (ev) {
-      const layerInput = this.previousSibling;
+      let layerInput = this.previousSibling.previousSibling;
+
       if (!layerInput.value) {
         let elem = document.getElementById('message-raster-layer');
         elem.innerHTML = 'Please add a URL for the layer';
-        elem.style.display = 'block';
+        elem.style.display = 'inline-block';
+        elem.classList.add('error');
         return;
       }
       let layername = '';
@@ -81,18 +91,20 @@ var createDashboard = function (selector, vizJSON, opts, callback) {
       } else if (layerInput.value.toUpperCase().includes('RGB')){
         layername = 'RGB'
       } 
-      if (!layername || confirm('Layer name: '+ layername + ', do you want to change it?')) {
+      if (!layername || confirm('Layer name: '+ layername + ', change it?')) {
         layername = prompt('Give this layer a name');
+        layername = (!!layername) ? layername : 'Layer';
       }
-      
-      const newlayer = new L.TileLayer(layerInput.value);
-      const layerindex = layerArray.length +1;
+
+      let newlayer = new L.TileLayer(layerInput.value);
+      let layerindex = layerArray.length +1;
       layerArray.push([newlayer]);
       vis.map.addLayer(newlayer);
+      vis.map.getLayerAt(vis.map.layers.length - 1).attributes._updateZIndex(1);
 
       let listitem = document.createElement('li');
-      listitem.innerHTML = layername + '<span class="remove-tiled-layer" data-layerindex="'+layerindex+'">Remove layer</span>';
-      ev.target.parentElement.lastElementChild.appendChild(listitem);
+      listitem.innerHTML = layername + '<span class="remove-tiled-layer" data-layerindex="'+layerindex+'"> 🗑</span>';
+      ev.target.parentElement.parentElement.lastElementChild.appendChild(listitem);
     }
     document.querySelector('body').addEventListener('click', function(event) {
       if (event.target.classList.contains('remove-tiled-layer') && confirm('delete layer?')) {
@@ -100,6 +112,7 @@ var createDashboard = function (selector, vizJSON, opts, callback) {
         event.target.parentElement.remove()
       }
     });
+
     if (stateFromURL && !_.isEmpty(stateFromURL.map)) {
       if (!_.isUndefined(stateFromURL.map.ne) && !_.isUndefined(stateFromURL.map.sw)) {
         vis.map.setBounds([stateFromURL.map.ne, stateFromURL.map.sw]);
@@ -156,8 +169,10 @@ var createDashboard = function (selector, vizJSON, opts, callback) {
           vis: vis
         });
       },
-      error: function (errorMessage) {
-        callback && callback(new Error(errorMessage), {
+      error: function () {
+        var error = new Error('Map instantiation failed');
+        console.log(error);
+        callback && callback(error, {
           dashboardView: dashboardView,
           widgets: widgetsService,
           vis: vis
@@ -191,7 +206,7 @@ module.exports = function (selector, vizJSON, opts, callback) {
       if (data) {
         _load(data, opts);
       } else {
-        callback && callback(new Error('Error fetching viz.json file: ' + vizJSON));
+        callback && callback(new Error('error fetching viz.json file'));
       }
     });
   } else {
