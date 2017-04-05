@@ -66,6 +66,50 @@ var createDashboard = function (selector, vizJSON, opts, callback) {
 
   
   vis.once('load', function (vis) {
+    /*check the user has tiled layers*/
+    const userlocation = userData.username;
+    const apikey = opts.apiKey;
+    let   visid = location.pathname.split('/');
+    visid = visid[visid.length - 1];
+
+    //check there is tiled_layers_collection
+    fetch(`http://${userlocation}.${location.hostname}/api/v2/sql?q=SELECT * from tiled_layers_collection where visible = true;&api_key=${apikey}`)
+      .then(
+      function(response) {  
+        if (response.status !== 200) {  
+          // the user have not created the tiled_layers_collection table
+          // let's create that table
+          fetch(`http://${userData.username}.${location.hostname}/api/v2/sql?q= create table tiled_layers_collection (tiled_layer string, vis string, layername string, visible bolean);&api_key=${opts.apiKey}`)
+            .then(
+              function(response) {
+                console.info('tiled_layers_collection created, updating...');
+                fetch(`http://${userData.username}.${location.hostname}/api/v2/sql?q= select cdb_cartodbfytable('tiled_layers_collection');&api_key=${opts.apiKey}`)
+                .then(
+                  function(response) {
+                    console.info('...updated');
+                  }
+                )
+              }
+            )
+        } else {
+          response.json().then(function(data) {
+            var list = document.querySelector('.raster-tiled-layers-content ul');
+            data.rows.forEach(function(row, i){
+              let listitem = document.createElement('li');
+              listitem.innerHTML = row.layername + '<span class="remove-tiled-layer" data-tiledlayer="'+row.tiled_layer+'" data-layerindex="'+ (i+1) +'"> 🗑</span>';
+              list.appendChild(listitem);
+              let newlayer = new L.TileLayer(row.tiled_layer);
+              vis.map.addLayer(newlayer);
+              vis.map.getLayerAt(vis.map.layers.length - 1).attributes._updateZIndex(1);
+            })
+          });
+        }
+      }  
+    )  
+    .catch(function(err) {  
+      console.error('Error fetching SQL API', err);  
+    });
+
     var tilebox = document.querySelectorAll('.Editor-ListLayer li');
     tilebox = tilebox[tilebox.length - 1];
     const boxtop = tilebox.offsetTop + tilebox.offsetHeight + 125 + 'px'; /*125px header height*/
@@ -103,13 +147,37 @@ var createDashboard = function (selector, vizJSON, opts, callback) {
       vis.map.getLayerAt(vis.map.layers.length - 1).attributes._updateZIndex(1);
 
       let listitem = document.createElement('li');
-      listitem.innerHTML = layername + '<span class="remove-tiled-layer" data-layerindex="'+layerindex+'"> 🗑</span>';
+      listitem.innerHTML = layername + '<span class="remove-tiled-layer" data-tiledlayer="'+layerInput.value+'" data-layerindex="'+layerindex+'"> 🗑</span>';
       ev.target.parentElement.parentElement.lastElementChild.appendChild(listitem);
+
+      //check if the layer exists and update status / insert
+      const query = `
+      UPDATE tiled_layers_collection
+      SET vis = '${visid}', layername = '${layername}', tiled_layer = '${encodeURIComponent(layerInput.value)}', visible = true
+      WHERE vis like '${visid}';
+
+      INSERT INTO tiled_layers_collection (vis, tiled_layer, visible, layername)
+      SELECT '${visid}','${encodeURIComponent(layerInput.value)}', true, '${layername}'
+      WHERE NOT EXISTS (SELECT 1 FROM tiled_layers_collection WHERE vis LIKE '${visid}')
+      `;
+      fetch(`http://${userlocation}.${location.hostname}/api/v2/sql?q=${query};&api_key=${apikey}`)
+      .then(
+        function(response) {
+          if (response.status == 200) {return console.info('table updated')}
+          console.error('error while updating the table')
+        }
+      );
     }
     document.querySelector('body').addEventListener('click', function(event) {
       if (event.target.classList.contains('remove-tiled-layer') && confirm('delete layer?')) {
         vis.map.removeLayerAt(~~event.target.dataset.layerindex +1);
-        event.target.parentElement.remove()
+        event.target.parentElement.remove();
+
+        //hide on DB
+        const query = `
+        UPDATE tiled_layers_collection SET visible = false WHERE tiled_layer LIKE '${encodeURIComponent(event.target.dataset.tiledlayer)}' AND vis like '${visid}';
+        `;
+        fetch(`http://${userlocation}.${location.hostname}/api/v2/sql?q=${query};&api_key=${apikey}`);
       }
     });
 
