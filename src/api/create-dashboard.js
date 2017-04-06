@@ -109,11 +109,13 @@ var createDashboard = function (selector, vizJSON, opts, callback) {
     .catch(function(err) {  
       console.error('Error fetching SQL API', err);  
     });
-
-    var tilebox = document.querySelectorAll('.Editor-ListLayer li');
-    tilebox = tilebox[tilebox.length - 1];
-    const boxtop = tilebox.offsetTop + tilebox.offsetHeight + 125 + 'px'; /*125px header height*/
-    document.querySelector('.Editor-ListLayer-item-raster').style.top = boxtop;
+    var paintBox = function() {
+      var tilebox = document.querySelectorAll('.Editor-ListLayer li');
+      tilebox = tilebox[tilebox.length - 1];
+      const boxtop = tilebox.offsetTop + tilebox.offsetHeight + 125 + 'px'; /*125px header height*/
+      document.querySelector('.Editor-ListLayer-item-raster').style.top = boxtop;
+    }
+    paintBox();
 
     document.querySelectorAll('.raster-tiled-layers-content button')[0].onclick = function (ev) {
       let layerInput = this.previousSibling.previousSibling;
@@ -169,6 +171,8 @@ var createDashboard = function (selector, vizJSON, opts, callback) {
       );
     }
     document.querySelector('body').addEventListener('click', function(event) {
+      paintBox();
+
       if (event.target.classList.contains('remove-tiled-layer') && confirm('delete layer?')) {
         vis.map.removeLayerAt(~~event.target.dataset.layerindex +1);
         event.target.parentElement.remove();
