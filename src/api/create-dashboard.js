@@ -73,7 +73,7 @@ var createDashboard = function (selector, vizJSON, opts, callback) {
     visid = visid[visid.length - 1];
 
     //check there is tiled_layers_collection
-    fetch(`http://${userlocation}.${location.hostname}/api/v2/sql?q=SELECT * from tiled_layers_collection where visible = true;&api_key=${apikey}`)
+    fetch(`http://${userlocation}.${location.hostname}/api/v2/sql?q=SELECT * from tiled_layers_collection where visible = true AND vis LIKE '${visid}';&api_key=${apikey}`)
       .then(
       function(response) {  
         if (response.status !== 200) {  
