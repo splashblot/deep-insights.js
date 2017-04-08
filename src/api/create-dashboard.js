@@ -79,7 +79,7 @@ var createDashboard = function (selector, vizJSON, opts, callback) {
         if (response.status !== 200) {  
           // the user have not created the tiled_layers_collection table
           // let's create that table
-          fetch(`http://${userData.username}.${location.hostname}/api/v2/sql?q= create table tiled_layers_collection (tiled_layer string, vis string, layername string, visible bolean);&api_key=${opts.apiKey}`)
+          fetch(`http://${userData.username}.${location.hostname}/api/v2/sql?q= create table tiled_layers_collection (tiled_layer text, vis text, layername text, visible boolean);&api_key=${opts.apiKey}`)
             .then(
               function(response) {
                 console.info('tiled_layers_collection created, updating...');
