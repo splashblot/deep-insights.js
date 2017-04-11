@@ -73,7 +73,7 @@ var createDashboard = function (selector, vizJSON, opts, callback) {
     visid = visid[visid.length - 1];
 
     //check for tileo_layers_collection
-    fetch(`//${userlocation}.${location.hostname}/api/v2/sql?q=SELECT * FROM tileo_layers_collection WHERE visible = true AND vis LIKE '${visid}';&api_key=${apikey}`)
+    fetch(`//${location.hostname}/user/${userlocation}/api/v2/sql?q=SELECT * FROM tileo_layers_collection WHERE visible = true AND vis LIKE '${visid}';&api_key=${apikey}`)
       .then(
       function(response) {  
         if (response.status !== 200) {  
@@ -222,7 +222,7 @@ var createDashboard = function (selector, vizJSON, opts, callback) {
       SELECT '${visid}','${encodeURIComponent(layerInput.value)}', true, '${layername}', '${is_layer_geotiff}'
       WHERE NOT EXISTS (SELECT 1 FROM tileo_layers_collection WHERE vis LIKE '${visid}')
       `;
-      fetch(`//${userlocation}.${location.hostname}/api/v2/sql?q=${query};&api_key=${apikey}`)
+      fetch(`//${location.hostname}/user/${userlocation}/api/v2/sql?q=${query};&api_key=${apikey}`)
       .then(
         function(response) {
           if (response.status == 200) {return console.info('table updated')}
@@ -242,7 +242,7 @@ var createDashboard = function (selector, vizJSON, opts, callback) {
         const query = `
         UPDATE tileo_layers_collection SET visible = false WHERE tileo_layer_url LIKE '${encodeURIComponent(event.target.dataset.tiledlayer)}' AND vis like '${visid}';
         `;
-        fetch(`//${userlocation}.${location.hostname}/api/v2/sql?q=${query};&api_key=${apikey}`);
+        fetch(`//${location.hostname}/user/${userlocation}/api/v2/sql?q=${query};&api_key=${apikey}`);
       }
     });
 
