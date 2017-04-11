@@ -66,14 +66,13 @@ var createDashboard = function (selector, vizJSON, opts, callback) {
 
   
   vis.once('load', function (vis) {
-    /*check the user has tiled layers*/
-    const userlocation = userData.username;
-    const apikey = opts.apiKey;
+    const USERLOCATION = userData.username;
+    const APIKEY = opts.apiKey;
     let   visid = location.pathname.split('/');
     visid = visid[visid.length - 1];
 
     //check for tileo_layers_collection
-    fetch(`//${location.hostname}/user/${userlocation}/api/v2/sql?q=SELECT * FROM tileo_layers_collection WHERE visible = true AND vis LIKE '${visid}';&api_key=${apikey}`)
+    fetch(`//${location.hostname}/user/${USERLOCATION}/api/v2/sql?q=SELECT * FROM tileo_layers_collection WHERE visible = true AND vis LIKE '${visid}';&api_key=${APIKEY}`)
       .then(
       function(response) {  
         if (response.status !== 200) {  
@@ -94,10 +93,30 @@ var createDashboard = function (selector, vizJSON, opts, callback) {
         } else {
           response.json().then(function(data) {
             var list = document.querySelector('.raster-tiled-layers-content ul');
+            var _rasterConfig = function (layername) {
+              debugger
+              return {
+                  "version": "1.3.1",
+                  "layers": [
+                    {
+                      "type": "cartodb",
+                      "options": {
+                        "sql": `SELECT * FROM ${layername};&api_key=${opts.apiKey}`,
+                        "cartocss": "#" + layername + " {raster-opacity: 0.5;}",
+                        "cartocss_version": "2.3.0",
+                        "geom_column": "the_raster_webmercator",
+                        "geom_type": "raster"
+                      }
+                    }
+                  ]
+                }
+            }
+
             data.rows.forEach(function(row, i){
-              let listitem = document.createElement('li');
-              listitem.innerHTML = row.layername + '<span class="remove-tiled-layer" data-tiledlayer="'+row.tileo_layer_url+'" data-layerindex="'+ (i+1) +'"> 🗑</span>';
-              list.appendChild(listitem);
+              const LAYERNAME = row.layername;
+
+              list.appendChild(_paintLine(LAYERNAME, row.tileo_layer_url, i));
+
               if (!row.is_layer_geotiff) {   // tileset
                 console.info('...tileset layer going in');
                 let newlayer = new L.TileLayer(row.tileo_layer_url);
@@ -111,24 +130,10 @@ var createDashboard = function (selector, vizJSON, opts, callback) {
                 }
 
                 function currentEndpoint() {
-                  return '//' + location.hostname + '/user/' + userData.username + '/api/v1/map';
+                  return '//' + location.hostname + '/user/' + currentUser() + '/api/v1/map';
                 }
                 
-                var config = {
-                  "version": "1.3.1",
-                  "layers": [
-                    {
-                      "type": "cartodb",
-                      "options": {
-                        "sql": "select * from " + row.layername,
-                        "cartocss": "#" + row.layername + " {raster-opacity: 0.5;}",
-                        "cartocss_version": "2.3.0",
-                        "geom_column": "the_raster_webmercator",
-                        "geom_type": "raster"
-                      }
-                    }
-                  ]
-                };
+                var config = _rasterConfig(LAYERNAME);
               
                 var request = new XMLHttpRequest();
                 request.open('POST', currentEndpoint(), true);
@@ -165,13 +170,20 @@ var createDashboard = function (selector, vizJSON, opts, callback) {
     .catch(function(err) {  
       console.error('Error fetching SQL API', err);  
     });
-    var paintBox = function() {
+
+    var _paintBox = function() {
       var tilebox = document.querySelectorAll('.Editor-ListLayer li');
       tilebox = tilebox[tilebox.length - 1];
-      const boxtop = tilebox.offsetTop + tilebox.offsetHeight + 125 + 'px'; /*125px header height*/
-      document.querySelector('.Editor-ListLayer-item-raster').style.top = boxtop;
+      const BOXTOP = tilebox.offsetTop + tilebox.offsetHeight + 125 + 'px'; /*125px header height*/
+      document.querySelector('.Editor-ListLayer-item-raster').style.top = BOXTOP;
     }
-    paintBox();
+    _paintBox();
+
+    var _paintLine = function(name, value, index) {
+      let listitem = document.createElement('li');
+      listitem.innerHTML = name + `<span class="remove-tiled-layer" data-tiledlayer="${value}" data-layerindex="'${index + 1}"> 🗑</span>`;
+      return listitem;
+    }
 
     document.querySelectorAll('.raster-tiled-layers-content button')[0].onclick = function (ev) {
       let layerInput = this.previousSibling.previousSibling;
@@ -191,11 +203,11 @@ var createDashboard = function (selector, vizJSON, opts, callback) {
       } else if (layerInput.value.toUpperCase().includes('NDVI')){
         layername = 'NDVI';
       } else if (layerInput.value.toUpperCase().includes('NDRE')){
-        layername = 'NDRE'
+        layername = 'NDRE';
       } else if (layerInput.value.toUpperCase().includes('THLA')){
-        layername = 'THLA'
+        layername = 'THLA';
       } else if (layerInput.value.toUpperCase().includes('RGB')){
-        layername = 'RGB'
+        layername = 'RGB';
       } 
       if (!layername || confirm('Layer name: '+ layername + ', change it?')) {
         layername = prompt('Give this layer a name');
@@ -209,11 +221,10 @@ var createDashboard = function (selector, vizJSON, opts, callback) {
       vis.map.getLayerAt(vis.map.layers.length - 1).attributes._updateZIndex(1);
 
       let listitem = document.createElement('li');
-      listitem.innerHTML = layername + '<span class="remove-tiled-layer" data-tiledlayer="'+layerInput.value+'" data-layerindex="'+layerindex+'"> 🗑</span>';
-      ev.target.parentElement.parentElement.lastElementChild.appendChild(listitem);
+      ev.target.parentElement.parentElement.lastElementChild.appendChild(_paintLine(layername, layerInput.value, layerindex-1));
 
       //check if the layer exists and update status / insert
-      const query = `
+      const QUERY = `
       UPDATE tileo_layers_collection
       SET vis = '${visid}', layername = '${layername}', tileo_layer_url = '${encodeURIComponent(layerInput.value)}', is_layer_geotiff = '${is_layer_geotiff}', visible = true
       WHERE vis like '${visid}';
@@ -222,7 +233,7 @@ var createDashboard = function (selector, vizJSON, opts, callback) {
       SELECT '${visid}','${encodeURIComponent(layerInput.value)}', true, '${layername}', '${is_layer_geotiff}'
       WHERE NOT EXISTS (SELECT 1 FROM tileo_layers_collection WHERE vis LIKE '${visid}')
       `;
-      fetch(`//${location.hostname}/user/${userlocation}/api/v2/sql?q=${query};&api_key=${apikey}`)
+      fetch(`//${location.hostname}/user/${USERLOCATION}/api/v2/sql?q=${QUERY};&api_key=${APIKEY}`)
       .then(
         function(response) {
           if (response.status == 200) {return console.info('table updated')}
@@ -232,17 +243,17 @@ var createDashboard = function (selector, vizJSON, opts, callback) {
     }
 
     document.querySelector('body').addEventListener('click', function(event) {
-      paintBox();
+      _paintBox();
 
       if (event.target.classList.contains('remove-tiled-layer') && confirm('delete layer?')) {
         vis.map.removeLayerAt(~~event.target.dataset.layerindex +1);
         event.target.parentElement.remove();
 
         //hide on DB
-        const query = `
+        const QUERY = `
         UPDATE tileo_layers_collection SET visible = false WHERE tileo_layer_url LIKE '${encodeURIComponent(event.target.dataset.tiledlayer)}' AND vis like '${visid}';
         `;
-        fetch(`//${location.hostname}/user/${userlocation}/api/v2/sql?q=${query};&api_key=${apikey}`);
+        fetch(`//${location.hostname}/user/${USERLOCATION}/api/v2/sql?q=${QUERY};&api_key=${APIKEY}`);
       }
     });
 
