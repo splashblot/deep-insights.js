@@ -94,7 +94,6 @@ var createDashboard = function (selector, vizJSON, opts, callback) {
           response.json().then(function(data) {
             var list = document.querySelector('.raster-tiled-layers-content ul');
             var _rasterConfig = function (layername) {
-              debugger
               return {
                   "version": "1.3.1",
                   "layers": [
