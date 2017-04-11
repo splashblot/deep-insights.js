@@ -79,11 +79,11 @@ var createDashboard = function (selector, vizJSON, opts, callback) {
         if (response.status !== 200) {  
           // the user has not created the tileo_layers_collection table
           // let's create that table
-          fetch(`//${userData.username}.${location.hostname}/api/v2/sql?q=CREATE TABLE tileo_layers_collection (tileo_layer_url TEXT, vis TEXT, layername TEXT, is_layer_geotiff BOOLEAN, visible BOOLEAN);&api_key=${opts.apiKey}`)
+          fetch(`//${location.hostname}/user/${userData.username}/api/v2/sql?q=CREATE TABLE tileo_layers_collection (tileo_layer_url TEXT, vis TEXT, layername TEXT, is_layer_geotiff BOOLEAN, visible BOOLEAN);&api_key=${opts.apiKey}`)
             .then(
               function(response) {
                 console.info('tileo_layers_collection created, updating...');
-                fetch(`//${userData.username}.${location.hostname}/api/v2/sql?q=SELECT cdb_cartodbfytable('tileo_layers_collection');&api_key=${opts.apiKey}`)
+                fetch(`//${location.hostname}/user/${userData.username}/api/v2/sql?q=SELECT cdb_cartodbfytable('tileo_layers_collection');&api_key=${opts.apiKey}`)
                 .then(
                   function(response) {
                     console.info('...updated');
