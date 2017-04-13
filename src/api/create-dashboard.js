@@ -85,6 +85,9 @@ var createDashboard = function (selector, vizJSON, opts, callback) {
         ]
       }
     }
+    var _renderTile = function(url) {
+      vis.map.createTileLayer({"urlTemplate" : url, "opacity" : 0.5});
+    }
 
     var _renderRaster = function(layername) {
 
@@ -155,9 +158,7 @@ var createDashboard = function (selector, vizJSON, opts, callback) {
 
               if (!row.is_layer_geotiff) {   // tileset
                 console.info('...tileset layer going in');
-                let newlayer = new L.TileLayer(row.tileo_layer_url);
-                vis.map.addLayer(newlayer);
-                vis.map.getLayerAt(vis.map.layers.length - 1).attributes._updateZIndex(1);
+                _renderTile(row.tileo_layer_url);
               } else {                      // raster
                 console.info('...raster layer going in');
                 _renderRaster(LAYERNAME);
@@ -223,7 +224,7 @@ var createDashboard = function (selector, vizJSON, opts, callback) {
         if (is_layer_geotiff) {
           _renderRaster(layername);
         } else {
-          vis.map.addLayer(newlayer);
+          _renderTile(layerInput.value);
         }
 
         let listitem = document.createElement('li');
