@@ -67,7 +67,7 @@ var createDashboard = function (selector, vizJSON, opts, callback) {
   vis.once('load', function (vis) {
     const ISNOTEMBED = (typeof userData != 'undefined') ? true : false;
     const USERLOCATION = (ISNOTEMBED) ? userData.username : vizJSON.datasource.user_name;
-    const APIKEY = (ISNOTEMBED) ? opts.apiKey : 'b538d2cc755a47d44f4dca84eb3445cc1a92e909'; //beta dev user hardcoded, force it to expire when in doubt
+    const APIKEY = (ISNOTEMBED) ? opts.apiKey : '289995ed61fb218c83d0aa1f776565b467741ae6'; //beta dev user hardcoded, force it to expire when in doubt
     var _rasterConfig = function (layername) {
       return {
         "version": "1.3.1",
