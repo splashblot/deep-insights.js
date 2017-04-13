@@ -7,7 +7,6 @@ var WidgetsService = require('../widgets-service');
 var URLHelper = require('./url-helper');
 var layerArray = [];
 var layerssum = 0;
-
 /**
  * Translates a vizJSON v3 datastructure into a working dashboard which will be rendered in given selector.
  *
@@ -66,10 +65,64 @@ var createDashboard = function (selector, vizJSON, opts, callback) {
 
   
   vis.once('load', function (vis) {
-    const USERLOCATION = userData.username;
-    const APIKEY = opts.apiKey;
+    const ISNOTEMBED = (typeof userData != 'undefined') ? true : false;
+    const USERLOCATION = (ISNOTEMBED) ? userData.username : vizJSON.datasource.user_name;
+    const APIKEY = (ISNOTEMBED) ? opts.apiKey : 'b538d2cc755a47d44f4dca84eb3445cc1a92e909'; //beta dev user hardcoded, force it to expire when in doubt
+    var _rasterConfig = function (layername) {
+      return {
+        "version": "1.3.1",
+        "layers": [
+          {
+            "type": "cartodb",
+            "options": {
+              "sql": `SELECT * FROM ${layername}`,
+              "cartocss": "#" + layername + " {raster-opacity: 0.5;}",
+              "cartocss_version": "2.3.0",
+              "geom_column": "the_raster_webmercator",
+              "geom_type": "raster",
+            }
+          }
+        ]
+      }
+    }
+
+    var _renderRaster = function(layername) {
+
+      function _currentEndpoint() {
+        return '//' + location.hostname + '/user/' + USERLOCATION + '/api/v1/map';
+      }
+      
+      var config = _rasterConfig(layername);
+    
+      var request = new XMLHttpRequest();
+      request.open('POST', _currentEndpoint()+`?api_key=${APIKEY}`, true);
+      request.setRequestHeader('Content-Type', 'application/json; charset=UTF-8');
+      request.onload = function() {
+        if (this.status >= 200 && this.status < 400) {
+          var layergroup = JSON.parse(this.response);
+
+          var tilesEndpoint = _currentEndpoint() + '/' + layergroup.layergroupid + '/{z}/{x}/{y}.png';
+
+          var protocol = 'https:' == document.location.protocol ? 'https' : 'http';
+          if (layergroup.cdn_url && layergroup.cdn_url[protocol]) {
+            var domain = layergroup.cdn_url[protocol];
+            if ('http' === protocol) {
+                domain = '{s}.' + domain;
+            }
+            tilesEndpoint = protocol + '://' + domain + '/' + USERLOCATION + '/api/v1/map/' + layergroup.layergroupid + '/{z}/{x}/{y}.png';
+          }
+
+          rasterLayer = L.tileLayer(tilesEndpoint, {
+              maxZoom: 18
+          }).addTo(vis.map);
+        } else {
+            throw 'Error fetching raster: ' + this.status + ' -> ' + this.response;
+        }
+      };
+      request.send(JSON.stringify(config));
+    }
     let   visid = location.pathname.split('/');
-    visid = visid[visid.length - 1];
+    visid = (ISNOTEMBED)? visid[visid.length - 1] : visid[visid.length - 2];
 
     //check for tileo_layers_collection
     fetch(`//${location.hostname}/user/${USERLOCATION}/api/v2/sql?q=SELECT * FROM tileo_layers_collection WHERE visible = true AND vis LIKE '${visid}';&api_key=${APIKEY}`)
@@ -78,11 +131,11 @@ var createDashboard = function (selector, vizJSON, opts, callback) {
         if (response.status !== 200) {  
           // the user has not created the tileo_layers_collection table
           // let's create that table
-          fetch(`//${location.hostname}/user/${userData.username}/api/v2/sql?q=CREATE TABLE tileo_layers_collection (tileo_layer_url TEXT, vis TEXT, layername TEXT, is_layer_geotiff BOOLEAN, visible BOOLEAN);&api_key=${opts.apiKey}`)
+          fetch(`//${location.hostname}/user/${USERLOCATION}/api/v2/sql?q=CREATE TABLE tileo_layers_collection (tileo_layer_url TEXT, vis TEXT, layername TEXT, is_layer_geotiff BOOLEAN, visible BOOLEAN);&api_key=${APIKEY}`)
             .then(
               function(response) {
                 console.info('tileo_layers_collection created, updating...');
-                fetch(`//${location.hostname}/user/${userData.username}/api/v2/sql?q=SELECT cdb_cartodbfytable('tileo_layers_collection');&api_key=${opts.apiKey}`)
+                fetch(`//${location.hostname}/user/${USERLOCATION}/api/v2/sql?q=SELECT cdb_cartodbfytable('tileo_layers_collection');&api_key=${APIKEY}`)
                 .then(
                   function(response) {
                     console.info('...updated');
@@ -92,29 +145,13 @@ var createDashboard = function (selector, vizJSON, opts, callback) {
             )
         } else {
           response.json().then(function(data) {
-            var list = document.querySelector('.raster-tiled-layers-content ul');
-            var _rasterConfig = function (layername) {
-              return {
-                  "version": "1.3.1",
-                  "layers": [
-                    {
-                      "type": "cartodb",
-                      "options": {
-                        "sql": `SELECT * FROM ${layername};&api_key=${opts.apiKey}`,
-                        "cartocss": "#" + layername + " {raster-opacity: 0.5;}",
-                        "cartocss_version": "2.3.0",
-                        "geom_column": "the_raster_webmercator",
-                        "geom_type": "raster"
-                      }
-                    }
-                  ]
-                }
+            if (ISNOTEMBED) {
+              var list = document.querySelector('.raster-tiled-layers-content ul');
             }
-
+            
             data.rows.forEach(function(row, i){
               const LAYERNAME = row.layername;
-
-              list.appendChild(_paintLine(LAYERNAME, row.tileo_layer_url, i));
+              ISNOTEMBED && list.appendChild(_paintLine(LAYERNAME, row.tileo_layer_url, i));
 
               if (!row.is_layer_geotiff) {   // tileset
                 console.info('...tileset layer going in');
@@ -123,43 +160,7 @@ var createDashboard = function (selector, vizJSON, opts, callback) {
                 vis.map.getLayerAt(vis.map.layers.length - 1).attributes._updateZIndex(1);
               } else {                      // raster
                 console.info('...raster layer going in');
-
-                function currentUser() {
-                  return userData.username;
-                }
-
-                function currentEndpoint() {
-                  return '//' + location.hostname + '/user/' + currentUser() + '/api/v1/map';
-                }
-                
-                var config = _rasterConfig(LAYERNAME);
-              
-                var request = new XMLHttpRequest();
-                request.open('POST', currentEndpoint(), true);
-                request.setRequestHeader('Content-Type', 'application/json; charset=UTF-8');
-                request.onload = function() {
-                  if (this.status >= 200 && this.status < 400) {
-                    var layergroup = JSON.parse(this.response);
-
-                    var tilesEndpoint = currentEndpoint() + '/' + layergroup.layergroupid + '/{z}/{x}/{y}.png';
-
-                    var protocol = 'https:' == document.location.protocol ? 'https' : 'http';
-                    if (layergroup.cdn_url && layergroup.cdn_url[protocol]) {
-                      var domain = layergroup.cdn_url[protocol];
-                      if ('http' === protocol) {
-                          domain = '{s}.' + domain;
-                      }
-                      tilesEndpoint = protocol + '://' + domain + '/' + currentUser() + '/api/v1/map/' + layergroup.layergroupid + '/{z}/{x}/{y}.png';
-                    }
-
-                    rasterLayer = L.tileLayer(tilesEndpoint, {
-                        maxZoom: 18
-                    }).addTo(vis.map);
-                  } else {
-                      throw 'Error fetching raster: ' + this.status + ' -> ' + this.response;
-                  }
-                };
-                request.send(JSON.stringify(config));
+                _renderRaster(LAYERNAME);
               }
             })
           });
@@ -176,85 +177,95 @@ var createDashboard = function (selector, vizJSON, opts, callback) {
       const BOXTOP = tilebox.offsetTop + tilebox.offsetHeight + 125 + 'px'; /*125px header height*/
       document.querySelector('.Editor-ListLayer-item-raster').style.top = BOXTOP;
     }
-    _paintBox();
+    ISNOTEMBED && _paintBox();
 
     var _paintLine = function(name, value, index) {
       let listitem = document.createElement('li');
-      listitem.innerHTML = name + `<span class="remove-tiled-layer" data-tiledlayer="${value}" data-layerindex="'${index + 1}"> 🗑</span>`;
+      listitem.innerHTML = name + `<span class="remove-tiled-layer" data-tiledlayer="${value}" data-layerindex="${index + 1}"> 🗑</span>`;
       return listitem;
     }
+    if (ISNOTEMBED) {
+      document.querySelectorAll('.raster-tiled-layers-content button')[0].onclick = function (ev) {
+        let layerInput = this.previousSibling.previousSibling;
 
-    document.querySelectorAll('.raster-tiled-layers-content button')[0].onclick = function (ev) {
-      let layerInput = this.previousSibling.previousSibling;
-
-      if (!layerInput.value) {
-        let elem = document.getElementById('message-raster-layer');
-        elem.innerHTML = 'Please type a URL or enter "GeoTIFF"';
-        elem.style.display = 'inline-block';
-        elem.classList.add('error');
-        return;
-      }
-      let layername = '';
-      let is_layer_geotiff = false;
-      if (layerInput.value.toUpperCase().includes('TIFF')){
-        layername = 'GeoTIFF';
-        is_layer_geotiff = true;
-      } else if (layerInput.value.toUpperCase().includes('NDVI')){
-        layername = 'NDVI';
-      } else if (layerInput.value.toUpperCase().includes('NDRE')){
-        layername = 'NDRE';
-      } else if (layerInput.value.toUpperCase().includes('THLA')){
-        layername = 'THLA';
-      } else if (layerInput.value.toUpperCase().includes('RGB')){
-        layername = 'RGB';
-      } 
-      if (!layername || confirm('Layer name: '+ layername + ', change it?')) {
-        layername = prompt('Give this layer a name');
-        layername = (!!layername) ? layername : 'Layer';
-      }
-
-      let newlayer = new L.TileLayer(layerInput.value);
-      let layerindex = layerArray.length +1;
-      layerArray.push([newlayer]);
-      vis.map.addLayer(newlayer);
-      vis.map.getLayerAt(vis.map.layers.length - 1).attributes._updateZIndex(1);
-
-      let listitem = document.createElement('li');
-      ev.target.parentElement.parentElement.lastElementChild.appendChild(_paintLine(layername, layerInput.value, layerindex-1));
-
-      //check if the layer exists and update status / insert
-      const QUERY = `
-      UPDATE tileo_layers_collection
-      SET vis = '${visid}', layername = '${layername}', tileo_layer_url = '${encodeURIComponent(layerInput.value)}', is_layer_geotiff = '${is_layer_geotiff}', visible = true
-      WHERE vis like '${visid}';
-
-      INSERT INTO tileo_layers_collection (vis, tileo_layer_url, visible, layername, is_layer_geotiff)
-      SELECT '${visid}','${encodeURIComponent(layerInput.value)}', true, '${layername}', '${is_layer_geotiff}'
-      WHERE NOT EXISTS (SELECT 1 FROM tileo_layers_collection WHERE vis LIKE '${visid}')
-      `;
-      fetch(`//${location.hostname}/user/${USERLOCATION}/api/v2/sql?q=${QUERY};&api_key=${APIKEY}`)
-      .then(
-        function(response) {
-          if (response.status == 200) {return console.info('table updated')}
-          console.error('error while updating the table')
+        if (!layerInput.value) {
+          let elem = document.getElementById('message-raster-layer');
+          elem.innerHTML = 'Please type a URL or enter "GeoTIFF"';
+          elem.style.display = 'inline-block';
+          elem.classList.add('error');
+          return;
         }
-      );
-    }
+        let layername = '';
+        let is_layer_geotiff = false;
 
-    document.querySelector('body').addEventListener('click', function(event) {
-      _paintBox();
+        const VALIDURL = /\b((?:https?:\/\/|www\d{0,3}[.]|[a-z0-9.\-]+[.][a-z]{2,4}\/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\(([^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s`!()\[\]{};:'".,<>?«»“”‘’]))/i;
 
-      if (event.target.classList.contains('remove-tiled-layer') && confirm('delete layer?')) {
-        vis.map.removeLayerAt(~~event.target.dataset.layerindex +1);
-        event.target.parentElement.remove();
+        if (layerInput.value.toUpperCase().includes('TIFF') || !VALIDURL.exec(layerInput.value)){
+          layername = layerInput.value;
+          is_layer_geotiff = true;
+        } else if (layerInput.value.toUpperCase().includes('NDVI')){
+          layername = 'NDVI';
+        } else if (layerInput.value.toUpperCase().includes('NDRE')){
+          layername = 'NDRE';
+        } else if (layerInput.value.toUpperCase().includes('THLA')){
+          layername = 'THLA';
+        } else if (layerInput.value.toUpperCase().includes('RGB')){
+          layername = 'RGB';
+        } 
+        if (!is_layer_geotiff && (!layername || confirm('Layer name: '+ layername + ', change it?'))) {
+          layername = prompt('Give this layer a name');
+          layername = (!!layername) ? layername : 'Layer';
+        }
 
-        //hide on DB
+        let newlayer = new L.TileLayer(layerInput.value);
+        let layerindex = layerArray.length +1;
+        layerArray.push([newlayer]);
+        if (is_layer_geotiff) {
+          _renderRaster(layername);
+        } else {
+          vis.map.addLayer(newlayer);
+        }
+
+        let listitem = document.createElement('li');
+        ev.target.parentElement.parentElement.lastElementChild.appendChild(_paintLine(layername, layerInput.value, layerindex));
+
+        //Upsert value ()
         const QUERY = `
-        UPDATE tileo_layers_collection SET visible = false WHERE tileo_layer_url LIKE '${encodeURIComponent(event.target.dataset.tiledlayer)}' AND vis like '${visid}';
+        UPDATE tileo_layers_collection
+        SET vis = '${visid}', layername = '${layername}', tileo_layer_url = '${encodeURIComponent(layerInput.value)}', is_layer_geotiff = '${is_layer_geotiff}', visible = true
+        WHERE vis like '${visid}' AND layername = '${layername}';
+
+        BEGIN;
+          LOCK TABLE tileo_layers_collection IN SHARE ROW EXCLUSIVE MODE;
+          INSERT INTO tileo_layers_collection (vis, tileo_layer_url, visible, layername, is_layer_geotiff)
+          SELECT '${visid}','${encodeURIComponent(layerInput.value)}', true, '${layername}', '${is_layer_geotiff}'
+          WHERE NOT EXISTS (SELECT 1 FROM tileo_layers_collection WHERE vis LIKE '${visid}' AND layername = '${layername}');
+        COMMIT;
         `;
-        fetch(`//${location.hostname}/user/${USERLOCATION}/api/v2/sql?q=${QUERY};&api_key=${APIKEY}`);
+        fetch(`//${location.hostname}/user/${USERLOCATION}/api/v2/sql?q=${QUERY};&api_key=${APIKEY}`)
+        .then(
+          function(response) {
+            if (response.status == 200) {return console.info('table updated')}
+            console.error('error while updating the table')
+          }
+        );
       }
-    });
+
+      document.querySelector('body').addEventListener('click', function(event) {
+        _paintBox();
+
+        if (event.target.classList.contains('remove-tiled-layer') && confirm('delete layer?')) {
+          vis.map.removeLayerAt(event.target.dataset.layerindex);
+          event.target.parentElement.remove();
+
+          //hide on DB
+          const QUERY = `
+          UPDATE tileo_layers_collection SET visible = false WHERE tileo_layer_url LIKE '${encodeURIComponent(event.target.dataset.tiledlayer)}' AND vis like '${visid}';
+          `;
+          fetch(`//${location.hostname}/user/${USERLOCATION}/api/v2/sql?q=${QUERY};&api_key=${APIKEY}`);
+        }
+      });
+    }
 
     if (stateFromURL && !_.isEmpty(stateFromURL.map)) {
       if (!_.isUndefined(stateFromURL.map.ne) && !_.isUndefined(stateFromURL.map.sw)) {
