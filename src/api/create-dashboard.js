@@ -174,6 +174,8 @@ var createDashboard = function (selector, vizJSON, opts, callback) {
 
     var _paintBox = function() {
       var tilebox = document.querySelectorAll('.Editor-ListLayer li');
+      if (!tilebox.length) return false;
+
       tilebox = tilebox[tilebox.length - 1];
       const BOXTOP = tilebox.offsetTop + tilebox.offsetHeight + 125 + 'px'; /*125px header height*/
       document.querySelector('.Editor-ListLayer-item-raster').style.top = BOXTOP;
