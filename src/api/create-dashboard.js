@@ -255,7 +255,12 @@ var createDashboard = function (selector, vizJSON, opts, callback) {
       }
 
       document.querySelector('body').addEventListener('click', function(event) {
-        _paintBox();
+        if (document.querySelectorAll('ul.CDB-NavMenu-inner li')[0].classList.contains('is-selected')) {
+          _paintBox();
+          document.querySelector('.Editor-ListLayer-item-raster').style.display = 'block';
+        } else {
+          document.querySelector('.Editor-ListLayer-item-raster').style.display = 'none';
+        }
 
         if (event.target.classList.contains('remove-tiled-layer') && confirm('delete layer?')) {
           vis.map.removeLayerAt(event.target.dataset.layerindex);
